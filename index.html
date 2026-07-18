@@ -168,9 +168,9 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0;color:var
     <thead><tr>
       <th data-k="symbol">幣種</th><th data-k="price">價格</th><th data-k="score" class="on">評分 ▾</th>
       <th data-k="chg24">24H%</th><th data-k="chgW">週期%</th><th data-k="vol24">24H 量</th>
-      <th data-k="liq">流動性</th><th data-k="rsi">RSI</th><th data-k="volSurge">量能倍數</th><th data-k="distHi">距前高</th>
+      <th data-k="liq">流動性</th><th data-k="rsi">RSI</th><th data-k="volSurge">量能倍數</th><th data-k="cvd" title="近半窗口主動買賣淨額佔成交額比例，正=買方主導">CVD%</th><th data-k="oi1h" title="未平倉量 1H 變化（僅有上永續合約的幣）">OI 1H%</th><th data-k="distHi">距前高</th>
     </tr></thead>
-    <tbody id="tbl-body"><tr><td colspan="10" style="text-align:center;color:var(--faint)">尚無數據</td></tr></tbody>
+    <tbody id="tbl-body"><tr><td colspan="12" style="text-align:center;color:var(--faint)">尚無數據</td></tr></tbody>
   </table></div>
 </section>
 
@@ -443,7 +443,29 @@ const cls = v => v>0?"up":v<0?"dn":"neut";
 
 /* ============ 主流程 ============ */
 const API = "https://www.binance.com/bapi/defi/v1/public";
-let STATE = {mode:"short", rows:[], sortK:"score", sortAsc:false, scanning:false, timer:null, tokenTotal:0};
+const FAPI = "https://fapi.binance.com";
+let STATE = {mode:"short", rows:[], sortK:"score", sortAsc:false, scanning:false, timer:null, tokenTotal:0, perps:null, perpsTs:0};
+
+/* 有上幣安永續合約的 Alpha 幣，可拉 OI（未平倉量）；純現貨 Alpha 幣沒有 OI 數據 */
+async function loadPerpSet(){
+  if(STATE.perps && Date.now()-STATE.perpsTs<3600e3) return STATE.perps;
+  try{
+    const ex = await fetchJSON(FAPI+"/fapi/v1/exchangeInfo", 1);
+    STATE.perps = new Set((ex.symbols||[]).filter(s=>s.contractType==="PERPETUAL"&&s.quoteAsset==="USDT"&&s.status==="TRADING").map(s=>s.baseAsset));
+    STATE.perpsTs = Date.now();
+  }catch(e){ STATE.perps = STATE.perps || new Set(); }
+  return STATE.perps;
+}
+async function fetchOI(sym){
+  try{
+    const h = await fetchJSON(FAPI+"/futures/data/openInterestHist?symbol="+sym+"USDT&period=1h&limit=25", 1);
+    if(!Array.isArray(h)||h.length<2) return null;
+    const v = h.map(x=>+x.sumOpenInterestValue);
+    const oi1h = v[v.length-2]>0 ? (v[v.length-1]/v[v.length-2]-1)*100 : null;
+    const oi24h = v[0]>0 ? (v[v.length-1]/v[0]-1)*100 : null;
+    return {oi1h, oi24h, oiVal:v[v.length-1]};
+  }catch(e){ return null; }
+}
 
 async function loadContext() {
   try {
@@ -475,6 +497,7 @@ async function scan() {
     const interval = STATE.mode==="short"?"1h":"4h";
 
     document.getElementById("ctx-vol").textContent = fmtUSD((tl.data||[]).reduce((s,t)=>s+(+t.volume24h||0),0));
+    const perps = await loadPerpSet();
 
     const rows=[]; let done=0, failed=0;
     const queue=[...toks];
@@ -488,10 +511,12 @@ async function scan() {
             const m = computeMetrics(bars, STATE.mode);
             const sc = scoreToken(m, STATE.mode);
             const plan = tradePlan(m);
-            rows.push({sym:t.symbol,name:t.name,chain:t.chainName,alphaId:t.alphaId,
+            const oi = perps.has(t.symbol) ? await fetchOI(t.symbol) : null;
+            rows.push({oi, oi1h:oi?oi.oi1h:null, contract:t.contractAddress||"",
               price:+t.price||m.c, chg24:+t.percentChange24h||0, vol24:+t.volume24h||0,
               liq:+t.liquidity||0, mcap:+t.marketCap||0, m, score:sc.score, factors:sc.factors, plan,
-              rsi:m.rsi, volSurge:m.volSurge, distHi:m.distHi*100, chgW:m.chgW*100});
+              rsi:m.rsi, volSurge:m.volSurge, distHi:m.distHi*100, chgW:m.chgW*100,
+              cvd:m.cvdValid?m.cvdNorm*100:null});
           } else failed++;
         }catch(e){ failed++; }
         done++;
@@ -592,8 +617,10 @@ function renderTable() {
     <td class="${cls(r.chg24)}">${pct(r.chg24)}</td><td class="${cls(r.chgW)}">${pct(r.chgW)}</td>
     <td>${fmtUSD(r.vol24)}</td><td>${fmtUSD(r.liq)}</td>
     <td>${isFinite(r.rsi)?r.rsi.toFixed(0):"--"}</td><td>${r.volSurge.toFixed(1)}×</td>
+    <td class="${r.cvd==null?"":cls(r.cvd)}">${r.cvd==null?"<span style='color:var(--faint)' title='成交筆數不足，CVD 不可信'>--</span>":pct(r.cvd)}</td>
+    <td class="${r.oi1h==null?"":cls(r.oi1h)}">${r.oi1h==null?"<span style='color:var(--faint)' title='未上永續合約，無 OI 數據'>無合約</span>":pct(r.oi1h)}</td>
     <td>${r.distHi<=0?"<span class='up'>已突破</span>":r.distHi.toFixed(1)+"%"}</td></tr>`).join("")
-    ||"<tr><td colspan='10' style='text-align:center;color:var(--faint)'>尚無數據</td></tr>";
+    ||"<tr><td colspan='12' style='text-align:center;color:var(--faint)'>尚無數據</td></tr>";
   document.querySelectorAll("#tbl-body tr").forEach(tr=>tr.addEventListener("click",()=>openModal(+tr.dataset.i)));
 }
 
@@ -622,10 +649,97 @@ function openModal(i) {
       <span class="k">ATR</span><span class="v">$${fmtP(r.m.atr)}</span>
       <span class="k">箱體位置</span><span class="v">${(r.m.posInRange*100).toFixed(0)}%</span>
       <span class="k">EMA50 乖離</span><span class="v">${pct(r.m.ext*100)}</span>
+      <span class="k">CVD 淨流入（近半窗口）</span><span class="v ${r.m.cvdValid?cls(r.m.cvdNorm):""}">${r.m.cvdValid?pct(r.m.cvdNorm*100):"數據不可信"}</span>
+      <span class="k">同期價格變化</span><span class="v ${cls(r.m.priceChgHalf)}">${pct(r.m.priceChgHalf*100)}</span>
+      <span class="k">OI 1H / 24H</span><span class="v">${r.oi?("<b class='"+cls(r.oi.oi1h||0)+"'>"+(r.oi.oi1h==null?"--":pct(r.oi.oi1h))+"</b> / <b class='"+cls(r.oi.oi24h||0)+"'>"+(r.oi.oi24h==null?"--":pct(r.oi.oi24h))+"</b>"):"<span style='color:var(--faint)'>未上永續，無 OI</span>"}</span>
+      <span class="k">OI 名目值</span><span class="v">${r.oi?fmtUSD(r.oi.oiVal):"--"}</span>
     </div>
+    <h3 style="margin:16px 0 8px;font-size:15px">買賣結構與鯨魚大單<span style="font-size:11px;color:var(--faint);font-weight:400">（近 500 筆成交 · 開啟時即時抓取 · 鯨魚=大額成交近似，非鏈上錢包追蹤）</span></h3>
+    <div id="m-whale"><div style="color:var(--faint);font-size:12px;padding:8px 0">載入成交數據中…</div></div>
+    <h3 style="margin:16px 0 8px;font-size:15px">鏈上 DEX 數據<span style="font-size:11px;color:var(--faint);font-weight:400">（DexScreener 免費 API · 取流動性最深的池）</span></h3>
+    <div id="m-chain"><div style="color:var(--faint);font-size:12px;padding:8px 0">載入鏈上數據中…</div></div>
     <div class="note" style="margin-top:14px">目標價是結構情境估算（前高 / 箱體等幅），不是預測。流動性 ${fmtUSD(r.liq)} 的 Alpha 幣滑價成本高，實際下單請以盤口深度為準；若 R:R < 1.5 或量能倍數 < 1.5，建議直接放棄這個 setup。</div>`;
   document.getElementById("modal-bg").classList.add("show");
   sparkline(document.getElementById("m-spark"), r.m.closes.slice(-150));
+  loadWhaleInfo(r);
+  loadChainInfo(r);
+}
+
+/* 鏈上 DEX 數據（DexScreener，免 key）＋ 免費工具快捷連結 */
+const EXPLORER = {BSC:["https://bscscan.com/token/","#balances"], Base:["https://basescan.org/token/","#balances"],
+  Ethereum:["https://etherscan.io/token/","#balances"], Solana:["https://solscan.io/token/","#holders"],
+  Arbitrum:["https://arbiscan.io/token/","#balances"]};
+const GMGN_CHAIN = {BSC:"bsc", Base:"base", Ethereum:"eth", Solana:"sol", Arbitrum:"arbitrum"};
+async function loadChainInfo(r){
+  const el=document.getElementById("m-chain"); if(!el) return;
+  if(!r.contract){el.innerHTML="<div style='color:var(--faint);font-size:12px'>無合約地址，無法查鏈上數據</div>";return;}
+  const ex=EXPLORER[r.chain], gm=GMGN_CHAIN[r.chain];
+  const links="<div style='margin-top:8px;font-size:12px;display:flex;gap:14px;flex-wrap:wrap'>"+
+    "<a href='https://dexscreener.com/search?q="+r.contract+"' target='_blank'>DexScreener ↗</a>"+
+    (gm?"<a href='https://gmgn.ai/"+gm+"/token/"+r.contract+"' target='_blank'>GMGN 聰明錢 ↗</a>":"")+
+    (ex?"<a href='"+ex[0]+r.contract+ex[1]+"' target='_blank'>區塊瀏覽器持幣分佈 ↗</a>":"")+
+    "<a href='https://intel.arkm.com/explorer/address/"+r.contract+"' target='_blank'>Arkham ↗</a></div>";
+  try{
+    const j=await fetch("https://api.dexscreener.com/latest/dex/tokens/"+r.contract,{signal:AbortSignal.timeout(12000)}).then(x=>x.json());
+    const pairs=(j.pairs||[]).filter(p=>p.liquidity&&p.liquidity.usd>0).sort((a,b)=>b.liquidity.usd-a.liquidity.usd);
+    if(!pairs.length){el.innerHTML="<div style='color:var(--faint);font-size:12px'>DexScreener 查無此代幣的池子</div>"+links;return;}
+    const p=pairs[0], tx=p.txns||{}, h1=tx.h1||{buys:0,sells:0}, h24=tx.h24||{buys:0,sells:0};
+    const br1=(h1.buys+h1.sells)>0?h1.buys/(h1.buys+h1.sells)*100:50;
+    const br24=(h24.buys+h24.sells)>0?h24.buys/(h24.buys+h24.sells)*100:50;
+    const ageD=p.pairCreatedAt?((Date.now()-p.pairCreatedAt)/86400000):null;
+    const thin=p.liquidity.usd<100000;
+    el.innerHTML=
+      "<div class='plan' style='grid-template-columns:1fr 1fr 1fr 1fr'>"+
+        "<span class='k'>DEX 流動性（最深池）</span><span class='v"+(thin?" dn":"")+"'>"+fmtUSD(p.liquidity.usd)+(thin?"（淺）":"")+"</span>"+
+        "<span class='k'>FDV / 市值</span><span class='v'>"+(p.fdv?fmtUSD(p.fdv):"--")+" / "+(p.marketCap?fmtUSD(p.marketCap):"--")+"</span>"+
+        "<span class='k'>DEX 24H 量</span><span class='v'>"+fmtUSD(p.volume&&p.volume.h24||0)+"</span>"+
+        "<span class='k'>池子年齡</span><span class='v'>"+(ageD==null?"--":ageD<1?(ageD*24).toFixed(0)+" 小時":ageD.toFixed(0)+" 天")+(ageD!=null&&ageD<7?"（新池，rug 風險自查）":"")+"</span>"+
+        "<span class='k'>1H 買/賣筆數</span><span class='v'><span class='up'>"+h1.buys+"</span>/<span class='dn'>"+h1.sells+"</span>（買占 "+br1.toFixed(0)+"%）</span>"+
+        "<span class='k'>24H 買/賣筆數</span><span class='v'><span class='up'>"+h24.buys+"</span>/<span class='dn'>"+h24.sells+"</span>（買占 "+br24.toFixed(0)+"%）</span>"+
+        "<span class='k'>DEX 價格</span><span class='v'>$"+fmtP(+p.priceUsd)+"</span>"+
+        "<span class='k'>DEX 24H 漲跌</span><span class='v "+cls(p.priceChange&&p.priceChange.h24||0)+"'>"+pct(p.priceChange&&p.priceChange.h24||0)+"</span>"+
+      "</div>"+
+      "<div style='font-size:11px;color:var(--faint);margin-top:6px'>持幣集中度（前十大地址佔比）DexScreener 沒有，點下方「區塊瀏覽器持幣分佈」免費看：前 10 名合計 >50% 的幣，鯨魚砸盤風險高。</div>"+links;
+  }catch(e){
+    el.innerHTML="<div style='color:var(--faint);font-size:12px'>鏈上數據抓取失敗</div>"+links;
+  }
+}
+
+/* 買賣結構與鯨魚大單：m=false 為主動買（taker buy），大單門檻取第 95 百分位（至少 $800） */
+async function loadWhaleInfo(r){
+  const el=document.getElementById("m-whale"); if(!el) return;
+  try{
+    const j=await fetchJSON(API+"/alpha-trade/agg-trades?symbol="+r.alphaId+"USDT&limit=500",2);
+    const tr=(j.data||[]).map(t=>({p:+t.p,q:+t.q,m:t.m,T:+t.T,n:(+t.p)*(+t.q)})).filter(t=>t.n>0);
+    if(tr.length<20){el.innerHTML="<div style='color:var(--faint);font-size:12px'>成交太少，無法分析買賣結構</div>";return;}
+    tr.sort((a,b)=>a.T-b.T);
+    const buys=tr.filter(t=>!t.m), sells=tr.filter(t=>t.m);
+    const bSum=buys.reduce((s,t)=>s+t.n,0), sSum=sells.reduce((s,t)=>s+t.n,0), tot=bSum+sSum;
+    const bp=tot>0?bSum/tot*100:50;
+    const ns=tr.map(t=>t.n).sort((a,b)=>a-b);
+    const thr=Math.max(800, ns[Math.floor(ns.length*0.95)]||0);
+    const wB=buys.filter(t=>t.n>=thr), wS=sells.filter(t=>t.n>=thr);
+    const wBSum=wB.reduce((s,t)=>s+t.n,0), wSSum=wS.reduce((s,t)=>s+t.n,0), wNet=wBSum-wSSum;
+    const maxT=tr.reduce((m,t)=>t.n>m.n?t:m,tr[0]);
+    const spanMin=Math.max(1,(tr[tr.length-1].T-tr[0].T)/60000);
+    el.innerHTML=
+      "<div style='display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:8px'>"+
+        "<span class='up'>買方 "+bp.toFixed(0)+"%</span>"+
+        "<div style='flex:1;height:10px;border-radius:5px;overflow:hidden;display:flex'>"+
+          "<i style='width:"+bp+"%;background:var(--green)'></i><i style='flex:1;background:var(--red)'></i></div>"+
+        "<span class='dn'>賣方 "+(100-bp).toFixed(0)+"%</span></div>"+
+      "<div class='plan' style='grid-template-columns:1fr 1fr 1fr 1fr'>"+
+        "<span class='k'>主動買入額</span><span class='v up'>"+fmtUSD(bSum)+"</span>"+
+        "<span class='k'>主動賣出額</span><span class='v dn'>"+fmtUSD(sSum)+"</span>"+
+        "<span class='k'>鯨魚大單淨額（≥"+fmtUSD(thr)+"）</span><span class='v "+cls(wNet)+"'>"+(wNet>0?"+":"")+fmtUSD(Math.abs(wNet)).replace("$",wNet<0?"-$":"$")+"</span>"+
+        "<span class='k'>大單筆數 買/賣</span><span class='v'><span class='up'>"+wB.length+"</span> / <span class='dn'>"+wS.length+"</span></span>"+
+        "<span class='k'>最大單筆</span><span class='v "+(maxT.m?"dn":"up")+"'>"+fmtUSD(maxT.n)+"（"+(maxT.m?"賣":"買")+"）</span>"+
+        "<span class='k'>樣本時間跨度</span><span class='v'>"+(spanMin>90?(spanMin/60).toFixed(1)+" 小時":spanMin.toFixed(0)+" 分鐘")+"</span>"+
+      "</div>"+
+      "<div style='font-size:11px;color:var(--faint);margin-top:6px'>判讀：鯨魚淨額為正且買方佔比 >55% = 大戶偏多；價格在跌但鯨魚淨買 = 可能吸籌；價格在漲但鯨魚淨賣 = 出貨警訊。時間跨度越短代表成交越活躍，統計越可信。</div>";
+  }catch(e){
+    el.innerHTML="<div style='color:var(--faint);font-size:12px'>成交數據抓取失敗，稍後再開一次</div>";
+  }
 }
 
 /* ============ 訊號追蹤迴路：記錄 → 自動結算 → 統計 ============ */
