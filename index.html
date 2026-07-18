@@ -513,6 +513,7 @@ async function scan() {
             const plan = tradePlan(m);
             const oi = perps.has(t.symbol) ? await fetchOI(t.symbol) : null;
             rows.push({oi, oi1h:oi?oi.oi1h:null, contract:t.contractAddress||"",
+              sym:t.symbol, name:t.name, chain:t.chainName, alphaId:t.alphaId,
               price:+t.price||m.c, chg24:+t.percentChange24h||0, vol24:+t.volume24h||0,
               liq:+t.liquidity||0, mcap:+t.marketCap||0, m, score:sc.score, factors:sc.factors, plan,
               rsi:m.rsi, volSurge:m.volSurge, distHi:m.distHi*100, chgW:m.chgW*100,
