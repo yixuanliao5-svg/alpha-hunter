@@ -189,8 +189,33 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0;color:var
   </div>
 </section>
 
+<section id="s6w">
+  <div class="sec-tag">06 · WHALE RADAR</div>
+  <h2>即時大單雷達</h2>
+  <div class="sec-sub">WebSocket 直連幣安 Alpha 逐筆成交流 · 監控掃描池中成交量前 N 檔 · <b style="color:var(--gold)">僅頁面開啟期間有效</b>，關分頁即停止 · 重新掃描後請重啟雷達套用新清單</div>
+  <div class="controls">
+    <button class="btn primary" id="wr-btn">啟動雷達</button>
+    <span class="ctl-label">大單門檻</span>
+    <select id="wr-thr"><option value="500">$500</option><option value="1000" selected>$1K</option><option value="3000">$3K</option><option value="10000">$10K</option></select>
+    <span class="ctl-label">監控檔數</span>
+    <select id="wr-n"><option>10</option><option selected>20</option><option>30</option></select>
+    <label class="ctl-label"><input type="checkbox" id="wr-sound" checked> 音效</label>
+    <label class="ctl-label"><input type="checkbox" id="wr-notif" checked> 彈出通知</label>
+    <span class="chip" id="wr-status">未啟動</span>
+  </div>
+  <div class="grid4" id="wr-stats">
+    <div class="stat"><div class="k">監控檔數</div><div class="v" id="wr-cnt">--</div><div class="s">掃描池成交量前 N</div></div>
+    <div class="stat"><div class="k">大單買入累計</div><div class="v up" id="wr-buy">$0</div><div class="s">本次連線期間</div></div>
+    <div class="stat"><div class="k">大單賣出累計</div><div class="v dn" id="wr-sell">$0</div><div class="s">本次連線期間</div></div>
+    <div class="stat"><div class="k">最大單筆</div><div class="v" id="wr-max" style="font-size:16px">--</div><div class="s">超過門檻的成交</div></div>
+  </div>
+  <div class="tbl-wrap" style="margin-top:14px;max-height:420px;overflow-y:auto">
+    <div id="wr-list" style="font-family:var(--mono);font-size:12px;line-height:2.1;padding:8px 6px"><span style="color:var(--faint)">啟動後，符合門檻的大單會即時出現在這裡（先執行一次掃描建立監控清單）</span></div>
+  </div>
+</section>
+
 <section id="s5">
-  <div class="sec-tag">06 · METHOD</div>
+  <div class="sec-tag">07 · METHOD</div>
   <h2>方法與限制</h2>
   <div class="note">
     <b>評分因子（滿分 100）：</b>量能爆增 20 · 結構位置（距前高/突破）20 · 趨勢結構（EMA20/50 + 高低點抬升）15 · RSI 區位 15 · MACD 動能 15 · CVD 買方吸籌 15。<br>
@@ -844,6 +869,64 @@ document.getElementById("btn-csv").addEventListener("click",()=>{
 document.getElementById("btn-clear").addEventListener("click",()=>{
   if(confirm("確定清除所有追蹤數據？建議先匯出 CSV 備份。")){localStorage.removeItem(TRK_KEY);renderTracker();}
 });
+
+/* ============ 即時大單雷達：WebSocket 訂閱 aggTrade ============ */
+const WR={ws:null,on:false,manualStop:false,map:{},alerts:[],lastNotif:{},buySum:0,sellSum:0,maxN:0,maxTxt:"--",actx:null};
+const setWr=(t,ok)=>{const el=document.getElementById("wr-status");el.textContent=t;el.className="chip "+(ok?"ok":"warn");};
+function wrBeep(){try{
+  const ctx=WR.actx||(WR.actx=new (window.AudioContext||window.webkitAudioContext)());
+  const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);
+  o.frequency.value=880;g.gain.setValueAtTime(0.08,ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.25);o.start();o.stop(ctx.currentTime+0.25);
+}catch(e){}}
+function startWhaleRadar(){
+  if(WR.on){WR.manualStop=true;try{WR.ws.close();}catch(e){}return;}
+  if(!STATE.rows.length){setWr("請先執行一次掃描");return;}
+  const watch=[...STATE.rows].sort((a,b)=>b.vol24-a.vol24).slice(0,+document.getElementById("wr-n").value);
+  WR.map={};watch.forEach(r=>WR.map[r.alphaId+"USDT"]=r.sym);
+  const streams=watch.map(r=>r.alphaId.toLowerCase()+"usdt@aggTrade");
+  if(document.getElementById("wr-notif").checked&&"Notification" in window&&Notification.permission==="default")Notification.requestPermission();
+  let ws;
+  try{ws=new WebSocket("wss://nbstream.binance.com/w3w/wsa/stream");}catch(e){setWr("WebSocket 建立失敗");return;}
+  WR.ws=ws;WR.on=true;WR.manualStop=false;
+  document.getElementById("wr-btn").textContent="停止雷達";
+  document.getElementById("wr-cnt").textContent=watch.length;
+  setWr("連線中…");
+  ws.onopen=()=>{ws.send(JSON.stringify({method:"SUBSCRIBE",params:streams,id:1}));setWr("已連線 · 監控 "+watch.length+" 檔",1);};
+  ws.onmessage=ev=>{try{
+    const j=JSON.parse(ev.data),d=j.data;
+    if(!d||d.e!=="aggTrade")return;
+    const n=(+d.p)*(+d.q);
+    if(!isFinite(n)||n<+document.getElementById("wr-thr").value)return;
+    handleWhale(d,n);
+  }catch(e){}};
+  ws.onclose=()=>{WR.on=false;document.getElementById("wr-btn").textContent="啟動雷達";
+    if(WR.manualStop){setWr("已停止");}
+    else{setWr("斷線，3 秒後自動重連…");setTimeout(()=>{if(!WR.on&&!WR.manualStop)startWhaleRadar();},3000);}};
+}
+function handleWhale(d,n){
+  const sym=WR.map[d.s]||d.s, isSell=!!d.m;
+  if(isSell)WR.sellSum+=n;else WR.buySum+=n;
+  if(n>WR.maxN){WR.maxN=n;WR.maxTxt=sym+" "+(isSell?"賣":"買")+" "+fmtUSD(n);}
+  WR.alerts.unshift({t:d.T||Date.now(),sym,isSell,n,p:+d.p});
+  if(WR.alerts.length>100)WR.alerts.pop();
+  document.getElementById("wr-buy").textContent=fmtUSD(WR.buySum);
+  document.getElementById("wr-sell").textContent=fmtUSD(WR.sellSum);
+  document.getElementById("wr-max").textContent=WR.maxTxt;
+  document.getElementById("wr-list").innerHTML=WR.alerts.map(a=>
+    "<div>"+new Date(a.t).toLocaleTimeString("zh-TW",{hour12:false})+"  "+
+    "<b style='color:var(--txt)'>"+a.sym+"</b> "+
+    (a.isSell?"<span class='dn'>▼ 大單賣出</span>":"<span class='up'>▲ 大單買入</span>")+" "+
+    "<b class='"+(a.isSell?"dn":"up")+"'>"+fmtUSD(a.n)+"</b>"+
+    " <span style='color:var(--faint)'>@ $"+fmtP(a.p)+"</span></div>").join("");
+  if(document.getElementById("wr-sound").checked)wrBeep();
+  const key=sym+(isSell?"S":"B"),now=Date.now();
+  if(document.getElementById("wr-notif").checked&&"Notification" in window&&Notification.permission==="granted"&&(!WR.lastNotif[key]||now-WR.lastNotif[key]>60000)){
+    WR.lastNotif[key]=now;
+    try{new Notification("🐋 "+sym+" 大單"+(isSell?"賣出":"買入")+" "+fmtUSD(n),{body:"價格 $"+fmtP(+d.p)+" · ALPHA HUNTER 大單雷達"});}catch(e){}
+  }
+}
+document.getElementById("wr-btn").addEventListener("click",startWhaleRadar);
 
 /* ============ 事件 ============ */
 document.getElementById("btn-scan").addEventListener("click",scan);
