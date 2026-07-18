@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALPHA HUNTER · Binance Alpha 上漲偵測雷達</title>
+<style>
+:root{
+  --bg:#07090f; --bg2:#0c1018; --card:#10151f; --card2:#151b28;
+  --line:#1e2636; --txt:#dfe6f2; --dim:#8a94a8; --faint:#5a6478;
+  --cyan:#2dd4bf; --gold:#f0b90b; --green:#22c55e; --red:#ef4444;
+  --purple:#a78bfa; --blue:#60a5fa;
+  --mono:'SF Mono','JetBrains Mono',Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,'PingFang TC','Microsoft JhengHei',sans-serif;line-height:1.55}
+a{color:var(--cyan);text-decoration:none}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px 80px}
+header{position:sticky;top:0;z-index:50;background:rgba(7,9,15,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hd{max-width:1280px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{font-weight:800;font-size:18px;letter-spacing:.5px}
+.logo b{color:var(--gold)}
+.logo span{color:var(--cyan);font-size:12px;margin-left:8px;font-weight:500}
+.hd .ctx{display:flex;gap:14px;font-family:var(--mono);font-size:12px;color:var(--dim);flex-wrap:wrap}
+.hd .ctx b{color:var(--txt)}
+.hd .right{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px}
+.chip{border:1px solid var(--line);border-radius:20px;padding:3px 12px;color:var(--dim);font-family:var(--mono);font-size:11px}
+.chip.ok{color:var(--green);border-color:rgba(34,197,94,.35)}
+.chip.warn{color:var(--gold);border-color:rgba(240,185,11,.35)}
+.btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 16px;cursor:pointer;font-size:13px;transition:.15s}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.primary{background:linear-gradient(135deg,rgba(45,212,191,.15),rgba(240,185,11,.12));border-color:rgba(45,212,191,.4)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+section{margin-top:46px}
+.sec-tag{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:2px}
+h2{font-size:22px;margin:4px 0 4px}
+.sec-sub{color:var(--dim);font-size:13px;margin-bottom:16px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.stat .k{font-size:12px;color:var(--dim);display:flex;justify-content:space-between}
+.stat .v{font-size:26px;font-weight:700;font-family:var(--mono);margin-top:6px}
+.stat .s{font-size:12px;color:var(--faint);margin-top:4px}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:18px}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{background:transparent;border:none;color:var(--dim);padding:8px 18px;cursor:pointer;font-size:13px}
+.seg button.on{background:var(--card2);color:var(--gold);font-weight:700}
+.ctl-label{font-size:12px;color:var(--dim)}
+select{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px}
+.progress{flex:1;min-width:180px;display:flex;align-items:center;gap:10px}
+.pbar{flex:1;height:6px;background:var(--card2);border-radius:4px;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .3s}
+.ptxt{font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px}
+.coin-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;cursor:pointer;transition:.15s;position:relative}
+.coin-card:hover{border-color:rgba(45,212,191,.5);transform:translateY(-2px)}
+.coin-card.strong{border-color:rgba(240,185,11,.45);background:linear-gradient(180deg,rgba(240,185,11,.05),var(--card) 40%)}
+.cc-top{display:flex;align-items:center;gap:10px}
+.cc-sym{font-weight:800;font-size:18px}
+.cc-name{color:var(--faint);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:5px;letter-spacing:1px}
+.badge.strong{background:rgba(240,185,11,.15);color:var(--gold)}
+.badge.watch{background:rgba(45,212,191,.12);color:var(--cyan)}
+.badge.chain{background:rgba(96,165,250,.12);color:var(--blue)}
+.cc-score{margin-left:auto;text-align:right}
+.cc-score .n{font-family:var(--mono);font-size:24px;font-weight:800}
+.cc-score .t{font-size:10px;color:var(--faint)}
+.cc-price{display:flex;gap:14px;margin:10px 0;font-family:var(--mono);font-size:13px;align-items:baseline}
+.cc-price .p{font-size:17px;font-weight:700}
+.up{color:var(--green)}.dn{color:var(--red)}.neut{color:var(--dim)}
+.spark{width:100%;height:44px;margin:4px 0 8px}
+.plan{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;background:var(--bg2);border-radius:10px;padding:10px 14px;margin-top:6px}
+.plan .k{color:var(--dim)}
+.plan .v{font-family:var(--mono);text-align:right}
+.upside{display:flex;gap:10px;margin-top:10px;align-items:center}
+.upside .tgt{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:center}
+.upside .tgt .pct{font-family:var(--mono);font-weight:800;font-size:16px;color:var(--green)}
+.upside .tgt .lb{font-size:10px;color:var(--faint)}
+.reasons{margin-top:10px;font-size:12px;color:var(--dim);line-height:1.7}
+.reasons li{margin-left:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;color:var(--faint);text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th:first-child,td:first-child{text-align:left}
+th.on{color:var(--gold)}
+td{padding:9px 10px;border-bottom:1px solid rgba(30,38,54,.5);text-align:right;font-family:var(--mono);white-space:nowrap}
+td:first-child{font-family:inherit;font-weight:700}
+tbody tr{cursor:pointer;transition:.1s}
+tbody tr:hover{background:var(--card2)}
+.tbl-wrap{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 12px 12px;overflow-x:auto}
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:14px 18px;font-size:13px;color:var(--dim);line-height:1.8}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px}
+.modal-bg.show{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--line);border-radius:18px;max-width:680px;width:100%;padding:24px}
+.m-close{float:right;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer}
+.fbar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px}
+.fbar .fn{width:150px;color:var(--dim)}
+.fbar .track{flex:1;height:8px;background:var(--card2);border-radius:4px;overflow:hidden}
+.fbar .track i{display:block;height:100%;background:var(--cyan);border-radius:4px}
+.fbar .pts{font-family:var(--mono);width:52px;text-align:right}
+.fbar .fnote{color:var(--faint);font-size:11px;flex-basis:100%;margin-left:160px;margin-top:-4px}
+.empty{color:var(--faint);text-align:center;padding:40px;font-size:14px}
+footer{margin-top:60px;border-top:1px solid var(--line);padding:24px 0;color:var(--faint);font-size:12px;line-height:1.8}
+.err-banner{display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);color:#fca5a5;border-radius:10px;padding:10px 16px;margin-top:14px;font-size:13px}
+@media(max-width:640px){.cards{grid-template-columns:1fr}.hd .ctx{display:none}}
+</style>
+</head>
+<body>
+<header><div class="hd">
+  <div class="logo"><b>ALPHA</b> HUNTER<span>幣安 Alpha 上漲偵測雷達</span></div>
+  <div class="ctx">
+    <span>BTC <b id="ctx-btc">—</b></span>
+    <span>恐貪 <b id="ctx-fng">—</b></span>
+    <span>Alpha 24H 總量 <b id="ctx-vol">—</b></span>
+  </div>
+  <div class="right">
+    <span class="chip" id="net-chip">連線待命</span>
+    <span class="chip" id="time-chip">尚未掃描</span>
+    <button class="btn primary" id="btn-scan">開始掃描</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+<section id="s1">
+  <div class="sec-tag">01 · OVERVIEW</div>
+  <h2>Alpha 市場總覽</h2>
+  <div class="sec-sub">Binance Alpha 全部上架代幣的整體溫度 · 廣度差代表普跌環境，勝率天然偏低</div>
+  <div class="grid4">
+    <div class="stat"><div class="k">掃描池（依 24H 量取前 N）</div><div class="v" id="ov-count">--</div><div class="s" id="ov-total">全 Alpha 代幣：--</div></div>
+    <div class="stat"><div class="k">市場廣度（24H 上漲比例）</div><div class="v" id="ov-breadth">--</div><div class="s" id="ov-breadth-s">普跌 / 普漲判斷</div></div>
+    <div class="stat"><div class="k">平均 24H 漲跌</div><div class="v" id="ov-avg">--</div><div class="s">掃描池平均</div></div>
+    <div class="stat"><div class="k">熱門鏈分佈</div><div class="v" id="ov-chain" style="font-size:16px;line-height:2">--</div><div class="s">掃描池內</div></div>
+  </div>
+  <div class="err-banner" id="err-banner"></div>
+</section>
+
+<section id="s2">
+  <div class="sec-tag">02 · SCANNER</div>
+  <h2>掃描設定</h2>
+  <div class="sec-sub">單次掃描約 20–60 秒（逐檔抓 K 線）· 短線用 1H K 線推導 4H，波段用 4H 推導日線</div>
+  <div class="controls">
+    <span class="ctl-label">模式</span>
+    <div class="seg" id="seg-mode">
+      <button data-m="short" class="on">短線 1H–4H</button>
+      <button data-m="swing">波段 1D</button>
+    </div>
+    <span class="ctl-label">掃描檔數</span>
+    <select id="sel-topn"><option>30</option><option selected>50</option><option>80</option></select>
+    <span class="ctl-label">最低流動性</span>
+    <select id="sel-liq"><option value="0">不限</option><option value="100000" selected>$100K</option><option value="500000">$500K</option></select>
+    <span class="ctl-label">自動刷新</span>
+    <select id="sel-auto"><option value="0">關閉</option><option value="300" selected>5 分鐘</option><option value="600">10 分鐘</option></select>
+    <div class="progress"><div class="pbar"><i id="pbar-i"></i></div><span class="ptxt" id="ptxt">待命</span></div>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="sec-tag">03 · SIGNALS</div>
+  <h2>上漲候選榜</h2>
+  <div class="sec-sub">多因子評分 ≥75 為強訊號、60–74 為觀察名單 · 「預估空間」是以結構高點與 ATR 推算的目標區，<b style="color:var(--gold)">是情境估算、不是預測</b> · 點卡片看評分拆解</div>
+  <div class="cards" id="cards"><div class="empty">按右上「開始掃描」啟動偵測</div></div>
+</section>
+
+<section id="s4">
+  <div class="sec-tag">04 · MARKET</div>
+  <h2>掃描池全表</h2>
+  <div class="sec-sub">點欄位排序 · 點列開詳情</div>
+  <div class="tbl-wrap"><table id="tbl">
+    <thead><tr>
+      <th data-k="symbol">幣種</th><th data-k="price">價格</th><th data-k="score" class="on">評分 ▾</th>
+      <th data-k="chg24">24H%</th><th data-k="chgW">週期%</th><th data-k="vol24">24H 量</th>
+      <th data-k="liq">流動性</th><th data-k="rsi">RSI</th><th data-k="volSurge">量能倍數</th><th data-k="distHi">距前高</th>
+    </tr></thead>
+    <tbody id="tbl-body"><tr><td colspan="10" style="text-align:center;color:var(--faint)">尚無數據</td></tr></tbody>
+  </table></div>
+</section>
+
+<section id="s5t">
+  <div class="sec-tag">05 · TRACKER</div>
+  <h2>訊號追蹤（驗證迴路）</h2>
+  <div class="sec-sub">每輪掃描自動記錄 ≥60 分訊號 · 24H / 72H 後自動回查實際走勢與目標命中 · 數據只存在這台裝置的瀏覽器（localStorage）· <b style="color:var(--gold)">累積 30+ 筆已結算樣本前，任何統計都只是雜訊</b></div>
+  <div class="grid4" id="trk-stats"><div class="stat"><div class="k">訊號樣本</div><div class="v">0</div><div class="s">掃描後自動累積</div></div></div>
+  <div class="tbl-wrap" style="margin-top:14px"><table>
+    <thead><tr><th style="text-align:left">幣種</th><th>記錄時間</th><th>模式</th><th>分數</th><th>記錄價</th><th>24H%</th><th>72H%</th><th>最大浮盈</th><th>T1命中</th><th>狀態</th></tr></thead>
+    <tbody id="trk-body"><tr><td colspan="10" style="text-align:center;color:var(--faint)">尚無訊號紀錄</td></tr></tbody>
+  </table></div>
+  <div style="margin-top:12px;display:flex;gap:10px">
+    <button class="btn" id="btn-csv">匯出 CSV（回測用）</button>
+    <button class="btn" id="btn-clear">清除追蹤數據</button>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-tag">06 · METHOD</div>
+  <h2>方法與限制</h2>
+  <div class="note">
+    <b>評分因子（滿分 100）：</b>量能爆增 20 · 結構位置（距前高/突破）20 · 趨勢結構（EMA20/50 + 高低點抬升）15 · RSI 區位 15 · MACD 動能 15 · CVD 買方吸籌 15。<br>
+    <b>預估空間的算法：</b>目標 1 = 近期結構高點（未突破時）或 0.5 倍箱體高度（已突破時）；目標 2 = 箱體等幅測量。這是「如果結構走出來，價格合理的到達區」，<b>不是機率意義上的預測</b>。Alpha 幣多數沒有合約與清算數據，無法做 OI/爆倉分析，評分可靠度低於主流合約幣。<br>
+    <b>先天限制請務必理解：</b>① Alpha 幣流動性淺，滑價與插針極常見，止損可能被跳空穿越；② 上架/下架、TGE、空投解鎖等事件性風險無法由技術面偵測；③ 任何掃描器都無法保證正期望值——沒有經過你自己的回測與紀錄驗證前，請把所有訊號當成「候選觀察」而非進場指令。
+  </div>
+</section>
+
+<footer>
+  <b>ALPHA HUNTER</b> — 個人研究用途的 Binance Alpha 市場掃描器。資料來源：Binance Alpha 公開行情 API（bapi/defi/alpha-trade）、api.binance.com、alternative.me Fear &amp; Greed。所有評分、目標價與進場區為程式化計算結果，僅供研究參考，不構成任何投資建議。Alpha 代幣屬於極高風險資產，價格可能在短時間內歸零，請嚴格控制倉位並自行評估。姊妹站：<a href="https://yixuanliao5-svg.github.io/watchtower/" target="_blank">哨塔 WATCHTOWER（合約市場雷達）</a>
+</footer>
+</div>
+
+<div class="modal-bg" id="modal-bg"><div class="modal" id="modal"></div></div>
+
+<script>
+"use strict";
+/* ============ 資料層：直連 → 自建 Worker → 公共代理，失敗自動降級 ============ */
+/* 部署 alpha-proxy-worker.js 到 Cloudflare 後，把網址貼在這裡（結尾不要斜線），例如：
+   const WORKER_URL = "https://alpha-proxy.你的帳號.workers.dev";  留空則跳過此層 */
+const WORKER_URL = "";
+const BAPI_BASE = "https://www.binance.com";
+const TRANSPORTS = [{name:"直連 Binance", cls:"ok", f:u=>u}];
+if (WORKER_URL) TRANSPORTS.push({name:"Worker 代理", cls:"ok",
+  f:u => u.startsWith(BAPI_BASE) ? WORKER_URL + u.slice(BAPI_BASE.length) : u});
+TRANSPORTS.push({name:"公共代理 corsproxy", cls:"warn", f:u=>"https://corsproxy.io/?url="+encodeURIComponent(u)});
+TRANSPORTS.push({name:"公共代理 allorigins", cls:"warn", f:u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u)});
+let proxyIdx = 0;
+async function fetchJSON(url, tries) {
+  tries = tries ?? TRANSPORTS.length;
+  for (let k = 0; k < tries; k++) {
+    const i = (proxyIdx + k) % TRANSPORTS.length;
+    try {
+      const r = await fetch(TRANSPORTS[i].f(url), {signal: AbortSignal.timeout(15000)});
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      proxyIdx = i;
+      setNetChip(i);
+      return j;
+    } catch (e) { /* try next */ }
+  }
+  throw new Error("所有連線方式皆失敗：" + url.slice(0, 80));
+}
+function setNetChip(i) {
+  const c = document.getElementById("net-chip");
+  c.textContent = TRANSPORTS[i].name;
+  c.className = "chip " + TRANSPORTS[i].cls;
+}
+
+/* ============ 指標函式（純函式，可獨立測試） ============ */
+function parseBars(raw) {
+  return raw.map(r => ({t:+r[0], o:+r[1], h:+r[2], l:+r[3], c:+r[4], v:+r[5], qv:+r[7], n:+r[8], tbq:+r[10]}))
+            .filter(b => isFinite(b.c) && b.c > 0);
+}
+function aggregate(bars, n) {
+  const out = [];
+  for (let i = bars.length % n; i + n <= bars.length; i += n) {
+    const g = bars.slice(i, i + n);
+    out.push({t:g[0].t, o:g[0].o, h:Math.max(...g.map(x=>x.h)), l:Math.min(...g.map(x=>x.l)),
+      c:g[g.length-1].c, v:g.reduce((s,x)=>s+x.v,0), qv:g.reduce((s,x)=>s+x.qv,0),
+      n:g.reduce((s,x)=>s+x.n,0), tbq:g.reduce((s,x)=>s+x.tbq,0)});
+  }
+  return out;
+}
+function emaArr(vals, p) {
+  const k = 2/(p+1), out = [];
+  let e = vals[0];
+  for (let i = 0; i < vals.length; i++) { e = i ? vals[i]*k + e*(1-k) : vals[0]; out.push(e); }
+  return out;
+}
+function rsiArr(closes, p=14) {
+  const out = new Array(closes.length).fill(NaN);
+  if (closes.length < p+1) return out;
+  let g=0, l=0;
+  for (let i=1;i<=p;i++){const d=closes[i]-closes[i-1]; if(d>0)g+=d; else l-=d;}
+  g/=p; l/=p;
+  out[p] = l===0 ? 100 : 100-100/(1+g/l);
+  for (let i=p+1;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    g=(g*(p-1)+(d>0?d:0))/p; l=(l*(p-1)+(d<0?-d:0))/p;
+    out[i]= l===0?100:100-100/(1+g/l);
+  }
+  return out;
+}
+function macdArr(closes) {
+  const e12=emaArr(closes,12), e26=emaArr(closes,26);
+  const line=closes.map((_,i)=>e12[i]-e26[i]);
+  const sig=emaArr(line,9);
+  return {line, sig, hist: line.map((v,i)=>v-sig[i])};
+}
+function atrVal(bars, p=14) {
+  if (bars.length < 2) return 0;
+  const trs=[];
+  for (let i=1;i<bars.length;i++){
+    const b=bars[i], pc=bars[i-1].c;
+    trs.push(Math.max(b.h-b.l, Math.abs(b.h-pc), Math.abs(b.l-pc)));
+  }
+  const n=Math.min(p,trs.length);
+  return trs.slice(-n).reduce((s,x)=>s+x,0)/n;
+}
+function last(a){return a[a.length-1];}
+
+/* 核心指標計算：bars = 基礎週期 K 線（短線=1H、波段=4H），aggN = 高一級週期倍數 */
+function computeMetrics(bars, mode) {
+  const closes = bars.map(b=>b.c);
+  const hi = bars.map(b=>b.h), lo = bars.map(b=>b.l);
+  const N = bars.length;
+  const aggN = mode==="short" ? 4 : 6;            // 1H→4H / 4H→1D
+  const big = aggregate(bars, aggN);
+  const bigCloses = big.map(b=>b.c);
+
+  const e20 = emaArr(closes,20), e50 = emaArr(closes,50);
+  const rsiB = rsiArr(closes,14), rsiBig = rsiArr(bigCloses,14);
+  const macdBig = macdArr(bigCloses);
+  const atr = atrVal(bars,14);
+
+  // 量能爆增：最近一個大週期 vs 之前大週期平均
+  const recQV = big.length ? last(big).qv : 0;
+  const baseArr = big.slice(0,-1).map(b=>b.qv).filter(x=>x>0);
+  const baseQV = baseArr.length ? baseArr.reduce((s,x)=>s+x,0)/baseArr.length : 0;
+  const volSurge = baseQV>0 ? recQV/baseQV : 0;
+
+  // 結構：前高（排除最近 4 根，避免自己跟自己比）、箱體
+  const cut = Math.max(1, N-4);
+  const hiPrev = Math.max(...hi.slice(0,cut));
+  const hiAll = Math.max(...hi), loAll = Math.min(...lo);
+  const c = last(closes);
+  const distHi = (hiPrev-c)/c;                    // >0 未到前高
+  const rangeH = hiAll-loAll;
+  const posInRange = rangeH>0 ? (c-loAll)/rangeH : 0.5;
+
+  // 高低點抬升：最近 3 個大週期 low 遞增
+  let hl = false;
+  if (big.length>=3) {
+    const l3 = big.slice(-3).map(b=>b.l);
+    hl = l3[2]>=l3[1] && l3[1]>=l3[0];
+  }
+  // CVD（主動買賣淨額）近似：Σ(2*takerBuyQuote − quoteVol)，取近半窗口
+  const half = bars.slice(Math.floor(N/2));
+  let cvd=0, qvSum=0; const ratios=[];
+  for (const b of half){ if(b.qv>0){cvd += 2*b.tbq-b.qv; qvSum+=b.qv; ratios.push(b.tbq/b.qv);} }
+  const mean = ratios.length? ratios.reduce((s,x)=>s+x,0)/ratios.length : .5;
+  const sd = ratios.length? Math.sqrt(ratios.reduce((s,x)=>s+(x-mean)**2,0)/ratios.length) : 0;
+  const cvdValid = ratios.length>=10 && sd>0.02 && mean<0.97;   // 全是1或無變異=資料不可信
+  const cvdNorm = qvSum>0 ? cvd/qvSum : 0;
+  const priceChgHalf = half.length>1 ? (last(half).c-half[0].c)/half[0].c : 0;
+
+  const chgW = closes.length>25 ? (c-closes[closes.length-25])/closes[closes.length-25] : 0; // 短線=24H, 波段≈4天
+  const ext = last(e50)>0 ? c/last(e50)-1 : 0;    // 乖離（過熱度）
+  const zeroBars = bars.slice(-48).filter(b=>b.qv===0).length;
+
+  return {c, atr, e20:last(e20), e50:last(e50), rsi:last(rsiB), rsiBig:last(rsiBig),
+    macdHist: macdBig.hist.slice(-3), macdCrossUp: big.length>2 && last(macdBig.line)>last(macdBig.sig) && macdBig.line[macdBig.line.length-2]<=macdBig.sig[macdBig.sig.length-2],
+    volSurge, distHi, hiPrev, hiAll, loAll, rangeH, posInRange, hl,
+    cvdNorm, cvdValid, priceChgHalf, chgW, ext, zeroBars,
+    trendUp: last(e20)>last(e50) && c>last(e20), closes, bars};
+}
+
+/* 評分：0–100，附拆解 */
+function scoreToken(m, mode) {
+  const F = [];
+  const add = (name, pts, max, note) => { F.push({name, pts:Math.max(0,Math.min(max,Math.round(pts))), max, note}); };
+
+  // 1. 量能爆增（20）
+  let vp = 0;
+  if (m.volSurge>=5) vp=20; else if (m.volSurge>=3) vp=16; else if (m.volSurge>=2) vp=12; else if (m.volSurge>=1.3) vp=7; else if (m.volSurge>=0.8) vp=3;
+  if (m.zeroBars>8) vp = Math.min(vp,4);
+  add("量能爆增", vp, 20, "近期量/常態量 = "+m.volSurge.toFixed(1)+"×"+(m.zeroBars>8?"（成交稀疏，扣分）":""));
+
+  // 2. 結構位置（20）：接近前高或剛突破最有利，深水區與過度乖離不利
+  let sp = 0, snote="";
+  if (m.distHi<=0) { sp = m.ext>0.35 ? 10 : 18; snote="已突破前高"+(m.ext>0.35?"，但乖離過大（追高風險）":"，順勢結構"); }
+  else if (m.distHi<0.03) { sp=20; snote="距前高 "+(m.distHi*100).toFixed(1)+"%，臨界突破"; }
+  else if (m.distHi<0.08) { sp=14; snote="距前高 "+(m.distHi*100).toFixed(1)+"%"; }
+  else if (m.distHi<0.2) { sp=8; snote="距前高 "+(m.distHi*100).toFixed(1)+"%，仍在箱體中部"; }
+  else { sp=m.posInRange<0.25?6:3; snote="距前高 "+(m.distHi*100).toFixed(0)+"%"+(m.posInRange<0.25?"，箱體底部（左側位置）":"，位置偏弱"); }
+  add("結構位置", sp, 20, snote);
+
+  // 3. 趨勢結構（15）
+  let tp = 0;
+  if (m.trendUp) tp += 9;
+  if (m.hl) tp += 6;
+  add("趨勢結構", tp, 15, (m.trendUp?"EMA20>EMA50 且價在均線上":"均線未走多")+(m.hl?" · 低點連續抬升":""));
+
+  // 4. RSI（15）
+  let rp=0, rn="";
+  const r = m.rsi, rb = m.rsiBig;
+  if (r>=45&&r<=65) {rp=12; rn="RSI "+r.toFixed(0)+" 多方健康區";}
+  else if (r>30&&r<45) {rp=8; rn="RSI "+r.toFixed(0)+" 偏弱待確認";}
+  else if (r<=30) {rp=6; rn="RSI "+r.toFixed(0)+" 超賣（搶反彈風險高）";}
+  else if (r<=75) {rp=7; rn="RSI "+r.toFixed(0)+" 偏熱";}
+  else {rp=2; rn="RSI "+r.toFixed(0)+" 超買，追入勝率差";}
+  if (isFinite(rb) && rb>=50 && rb<=70) rp=Math.min(15,rp+3);
+  add("RSI 區位", rp, 15, rn+(isFinite(rb)?"（大週期 "+rb.toFixed(0)+"）":""));
+
+  // 5. MACD（15）
+  let mp=0, mn="動能平淡";
+  const h=m.macdHist;
+  if (h.length>=2) {
+    const rising = h[h.length-1]>h[h.length-2];
+    const pos = h[h.length-1]>0;
+    if (m.macdCrossUp) {mp=15; mn="大週期 MACD 剛金叉";}
+    else if (pos&&rising) {mp=12; mn="柱狀圖正值且擴張";}
+    else if (rising) {mp=8; mn="柱狀圖回升中";}
+    else if (pos) {mp=5; mn="正值但動能收斂";}
+    else {mp=1; mn="空方動能";}
+  }
+  add("MACD 動能", mp, 15, mn);
+
+  // 6. CVD 買方吸籌（15）
+  let cp=0, cn="";
+  if (!m.cvdValid) {cn="成交筆數不足，CVD 不可信（不給分）";}
+  else if (m.cvdNorm>0.05 && m.priceChgHalf<0.02) {cp=15; cn="價平/跌但買方淨流入 "+(m.cvdNorm*100).toFixed(1)+"%（吸籌背離）";}
+  else if (m.cvdNorm>0.05) {cp=11; cn="買方淨流入 "+(m.cvdNorm*100).toFixed(1)+"%，量價同向";}
+  else if (m.cvdNorm>0) {cp=6; cn="買方小幅淨流入";}
+  else {cp=1; cn="賣方主導（CVD "+(m.cvdNorm*100).toFixed(1)+"%）";}
+  add("CVD 吸籌", cp, 15, cn);
+
+  const score = F.reduce((s,f)=>s+f.pts,0);
+  return {score, factors:F};
+}
+
+/* 進場計畫：進場區 / 止損 / 目標 / 預估空間 / R:R */
+function tradePlan(m) {
+  const c=m.c, atr=m.atr||c*0.02;
+  const pull = m.e20>0 && c>m.e20*1.05;
+  const entryLow = pull ? m.e20 : Math.min(c, m.e20>0?Math.max(m.e20,c*0.97):c*0.97);
+  const entryHigh = pull ? m.e20*1.025 : c;
+  const entryMid = (entryLow+entryHigh)/2;
+  const recentLow = Math.min(...m.bars.slice(-12).map(b=>b.l));
+  let stop = Math.min(recentLow*0.995, entryLow-1.2*atr);
+  if (stop>=entryLow*0.995) stop = entryLow-1.5*atr;
+  if (stop<=0) stop = entryLow*0.85;
+  let t1, t2, breakout=false;
+  if (m.distHi>0.005) { t1=m.hiPrev; t2=m.hiPrev + (m.rangeH||atr*4)*0.618; }
+  else { breakout=true; t1=c+(m.rangeH||atr*4)*0.5; t2=c+(m.rangeH||atr*4); }
+  if (t1<=c) t1=c+1.5*atr;
+  if (t2<=t1) t2=t1+2*atr;
+  const up1=(t1-c)/c*100, up2=(t2-c)/c*100;
+  const risk=entryMid-stop;
+  const rr= risk>0 ? (t1-entryMid)/risk : 0;
+  return {entryLow, entryHigh, stop, t1, t2, up1, up2, rr, pull, breakout};
+}
+
+/* ============ 格式化 ============ */
+const fmtP = p => { if(!isFinite(p))return"--"; if(p>=100)return p.toFixed(2); if(p>=1)return p.toFixed(4); if(p>=0.001)return p.toFixed(6); return p.toPrecision(4); };
+const fmtUSD = v => v>=1e9?"$"+(v/1e9).toFixed(2)+"B":v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1e3?"$"+(v/1e3).toFixed(0)+"K":"$"+v.toFixed(0);
+const pct = (v,d=1) => (v>0?"+":"")+v.toFixed(d)+"%";
+const cls = v => v>0?"up":v<0?"dn":"neut";
+
+/* ============ 主流程 ============ */
+const API = "https://www.binance.com/bapi/defi/v1/public";
+let STATE = {mode:"short", rows:[], sortK:"score", sortAsc:false, scanning:false, timer:null, tokenTotal:0};
+
+async function loadContext() {
+  try {
+    const b = await fetchJSON("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", 1).catch(()=>null);
+    if (b) document.getElementById("ctx-btc").innerHTML = "$"+(+b.lastPrice).toLocaleString(undefined,{maximumFractionDigits:0})+" <span class='"+cls(+b.priceChangePercent)+"'>"+pct(+b.priceChangePercent)+"</span>";
+  } catch(e){}
+  try {
+    const f = await fetch("https://api.alternative.me/fng/?limit=1").then(r=>r.json()).catch(()=>null);
+    if (f&&f.data&&f.data[0]) document.getElementById("ctx-fng").textContent = f.data[0].value+" "+({["Extreme Fear"]:"極恐",Fear:"恐懼",Neutral:"中性",Greed:"貪婪",["Extreme Greed"]:"極貪"}[f.data[0].value_classification]||"");
+  } catch(e){}
+}
+
+async function scan() {
+  if (STATE.scanning) return;
+  STATE.scanning = true;
+  const btn=document.getElementById("btn-scan"); btn.disabled=true; btn.textContent="掃描中…";
+  const errB=document.getElementById("err-banner"); errB.style.display="none";
+  const setP=(f,t)=>{document.getElementById("pbar-i").style.width=(f*100).toFixed(0)+"%";document.getElementById("ptxt").textContent=t;};
+  try {
+    setP(0.03,"抓取 Alpha 代幣清單…");
+    const tl = await fetchJSON(API+"/wallet-direct/buw/wallet/cex/alpha/all/token/list");
+    let toks = (tl.data||[]).filter(t=>t.alphaId&&+t.volume24h>0);
+    STATE.tokenTotal = toks.length;
+    const minLiq = +document.getElementById("sel-liq").value;
+    if (minLiq) toks = toks.filter(t=>+t.liquidity>=minLiq);
+    toks.sort((a,b)=>+b.volume24h-+a.volume24h);
+    const topN = +document.getElementById("sel-topn").value;
+    toks = toks.slice(0, topN);
+    const interval = STATE.mode==="short"?"1h":"4h";
+
+    document.getElementById("ctx-vol").textContent = fmtUSD((tl.data||[]).reduce((s,t)=>s+(+t.volume24h||0),0));
+
+    const rows=[]; let done=0, failed=0;
+    const queue=[...toks];
+    async function worker(){
+      while(queue.length){
+        const t=queue.shift();
+        try{
+          const kj = await fetchJSON(API+"/alpha-trade/klines?interval="+interval+"&limit=500&symbol="+t.alphaId+"USDT", 2);
+          const bars = parseBars(kj.data||[]);
+          if (bars.length>=60){
+            const m = computeMetrics(bars, STATE.mode);
+            const sc = scoreToken(m, STATE.mode);
+            const plan = tradePlan(m);
+            rows.push({sym:t.symbol,name:t.name,chain:t.chainName,alphaId:t.alphaId,
+              price:+t.price||m.c, chg24:+t.percentChange24h||0, vol24:+t.volume24h||0,
+              liq:+t.liquidity||0, mcap:+t.marketCap||0, m, score:sc.score, factors:sc.factors, plan,
+              rsi:m.rsi, volSurge:m.volSurge, distHi:m.distHi*100, chgW:m.chgW*100});
+          } else failed++;
+        }catch(e){ failed++; }
+        done++;
+        setP(0.05+0.95*done/toks.length, "計算指標 "+done+"/"+toks.length+(failed?"（"+failed+" 檔略過）":""));
+      }
+    }
+    await Promise.all(Array.from({length:6},worker));
+    rows.sort((a,b)=>b.score-a.score);
+    STATE.rows=rows;
+    render();
+    const added=recordSignals(rows);
+    resolvePending();
+    document.getElementById("time-chip").textContent="更新 "+new Date().toLocaleTimeString("zh-TW",{hour12:false});
+    setP(1,"完成："+rows.length+" 檔"+(added?" · 新增追蹤 "+added+" 筆":""));
+  } catch(e) {
+    errB.textContent="掃描失敗："+e.message+"。若持續失敗，可能是 CORS 代理暫時不可用，稍後再試。";
+    errB.style.display="block";
+    setP(0,"失敗");
+  } finally {
+    STATE.scanning=false; btn.disabled=false; btn.textContent="重新掃描";
+  }
+}
+
+/* ============ 渲染 ============ */
+function sparkline(cv, closes) {
+  const ctx=cv.getContext("2d"), W=cv.width=cv.clientWidth*2, H=cv.height=88;
+  const n=closes.length, mn=Math.min(...closes), mx=Math.max(...closes), rg=mx-mn||1;
+  ctx.lineWidth=2.5;
+  const up=closes[n-1]>=closes[0];
+  ctx.strokeStyle=up?"#22c55e":"#ef4444";
+  ctx.beginPath();
+  closes.forEach((c,i)=>{const x=i/(n-1)*W, y=H-8-((c-mn)/rg)*(H-16); i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.stroke();
+}
+function grade(s){return s>=75?["strong","強訊號"]:s>=60?["watch","觀察"]:["","低分"];}
+
+function render() {
+  const rows=STATE.rows;
+  // overview
+  document.getElementById("ov-count").textContent=rows.length;
+  document.getElementById("ov-total").textContent="全 Alpha 代幣："+STATE.tokenTotal;
+  const upN=rows.filter(r=>r.chg24>0).length;
+  const br=rows.length?upN/rows.length*100:0;
+  document.getElementById("ov-breadth").innerHTML="<span class='"+(br>55?"up":br<40?"dn":"neut")+"'>"+br.toFixed(0)+"%</span>";
+  document.getElementById("ov-breadth-s").textContent=br>60?"偏普漲，順風環境":br<35?"普跌環境，做多勝率天然偏低":"漲跌互見";
+  const avg=rows.length?rows.reduce((s,r)=>s+r.chg24,0)/rows.length:0;
+  document.getElementById("ov-avg").innerHTML="<span class='"+cls(avg)+"'>"+pct(avg)+"</span>";
+  const chains={};rows.forEach(r=>chains[r.chain]=(chains[r.chain]||0)+1);
+  document.getElementById("ov-chain").textContent=Object.entries(chains).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k+" "+v).join(" · ")||"--";
+
+  // cards
+  const picks=rows.filter(r=>r.score>=60).slice(0,12);
+  const cardsEl=document.getElementById("cards");
+  if(!picks.length){cardsEl.innerHTML="<div class='empty'>本輪沒有 ≥60 分的候選。普跌或動能真空時這很正常——沒有訊號本身就是訊號，別硬做。</div>";}
+  else{
+    cardsEl.innerHTML=picks.map((r,i)=>{
+      const [gc,gt]=grade(r.score), p=r.plan;
+      return `<div class="coin-card ${gc}" data-i="${rows.indexOf(r)}">
+        <div class="cc-top"><span class="cc-sym">${r.sym}</span><span class="cc-name">${r.name||""}</span>
+          <span class="badge chain">${r.chain||""}</span><span class="badge ${gc}">${gt}</span>
+          <div class="cc-score"><div class="n" style="color:${r.score>=75?"var(--gold)":"var(--cyan)"}">${r.score}</div><div class="t">/100</div></div></div>
+        <div class="cc-price"><span class="p">$${fmtP(r.price)}</span>
+          <span class="${cls(r.chg24)}">24H ${pct(r.chg24)}</span>
+          <span class="neut">量 ${fmtUSD(r.vol24)}</span><span class="neut">流動性 ${fmtUSD(r.liq)}</span></div>
+        <canvas class="spark"></canvas>
+        <div class="upside">
+          <div class="tgt"><div class="pct">${pct(p.up1)}</div><div class="lb">目標1 $${fmtP(p.t1)}${p.breakout?"（突破量測）":"（前高）"}</div></div>
+          <div class="tgt"><div class="pct">${pct(p.up2)}</div><div class="lb">目標2 $${fmtP(p.t2)}（等幅測量）</div></div>
+        </div>
+        <div class="plan">
+          <span class="k">進場區${p.pull?"（等回踩 EMA20）":"（現價區）"}</span><span class="v">$${fmtP(p.entryLow)} – $${fmtP(p.entryHigh)}</span>
+          <span class="k">止損</span><span class="v dn">$${fmtP(p.stop)}（${((p.stop-r.price)/r.price*100).toFixed(1)}%）</span>
+          <span class="k">R:R（進場中值→目標1）</span><span class="v ${p.rr>=2?"up":p.rr>=1.2?"neut":"dn"}">${p.rr.toFixed(1)} : 1${p.rr<1.5?"（偏差，建議放棄或等更好進場）":""}</span>
+        </div>
+        <ul class="reasons">${r.factors.filter(f=>f.pts>=f.max*0.6).slice(0,3).map(f=>"<li>"+f.note+"</li>").join("")}</ul>
+      </div>`;}).join("");
+    cardsEl.querySelectorAll(".coin-card").forEach(el=>{
+      el.addEventListener("click",()=>openModal(+el.dataset.i));
+      const r=rows[+el.dataset.i];
+      sparkline(el.querySelector(".spark"), r.m.closes.slice(-100));
+    });
+  }
+  renderTable();
+}
+
+function renderTable() {
+  const {rows,sortK,sortAsc}=STATE;
+  const sorted=[...rows].sort((a,b)=>{
+    const va=a[sortK]??0, vb=b[sortK]??0;
+    if(typeof va==="string")return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    return sortAsc?va-vb:vb-va;});
+  document.querySelectorAll("#tbl th").forEach(th=>{
+    th.classList.toggle("on",th.dataset.k===sortK);
+    th.innerHTML=th.innerHTML.replace(/ [▾▴]/,"")+(th.dataset.k===sortK?(sortAsc?" ▴":" ▾"):"");});
+  document.getElementById("tbl-body").innerHTML=sorted.map(r=>
+    `<tr data-i="${rows.indexOf(r)}"><td>${r.sym}<span style="color:var(--faint);font-weight:400;font-size:11px"> ${r.chain||""}</span></td>
+    <td>$${fmtP(r.price)}</td><td style="color:${r.score>=75?"var(--gold)":r.score>=60?"var(--cyan)":"inherit"};font-weight:700">${r.score}</td>
+    <td class="${cls(r.chg24)}">${pct(r.chg24)}</td><td class="${cls(r.chgW)}">${pct(r.chgW)}</td>
+    <td>${fmtUSD(r.vol24)}</td><td>${fmtUSD(r.liq)}</td>
+    <td>${isFinite(r.rsi)?r.rsi.toFixed(0):"--"}</td><td>${r.volSurge.toFixed(1)}×</td>
+    <td>${r.distHi<=0?"<span class='up'>已突破</span>":r.distHi.toFixed(1)+"%"}</td></tr>`).join("")
+    ||"<tr><td colspan='10' style='text-align:center;color:var(--faint)'>尚無數據</td></tr>";
+  document.querySelectorAll("#tbl-body tr").forEach(tr=>tr.addEventListener("click",()=>openModal(+tr.dataset.i)));
+}
+
+function openModal(i) {
+  const r=STATE.rows[i]; if(!r)return;
+  const p=r.plan,[gc,gt]=grade(r.score);
+  document.getElementById("modal").innerHTML=`
+    <button class="m-close" onclick="document.getElementById('modal-bg').classList.remove('show')">✕</button>
+    <div class="cc-top"><span class="cc-sym" style="font-size:22px">${r.sym}</span><span class="cc-name">${r.name||""}</span>
+      <span class="badge chain">${r.chain}</span><span class="badge ${gc}">${gt} ${r.score}/100</span></div>
+    <div class="cc-price" style="margin:12px 0"><span class="p">$${fmtP(r.price)}</span>
+      <span class="${cls(r.chg24)}">24H ${pct(r.chg24)}</span><span class="neut">市值 ${fmtUSD(r.mcap)}</span>
+      <span class="neut">量能 ${r.volSurge.toFixed(1)}×</span><span class="neut">RSI ${isFinite(r.rsi)?r.rsi.toFixed(0):"--"}</span></div>
+    <canvas class="spark" id="m-spark" style="height:64px"></canvas>
+    <h3 style="margin:14px 0 8px;font-size:15px">評分拆解</h3>
+    ${r.factors.map(f=>`<div class="fbar"><span class="fn">${f.name}</span>
+      <div class="track"><i style="width:${f.pts/f.max*100}%;background:${f.pts/f.max>=0.7?"var(--gold)":"var(--cyan)"}"></i></div>
+      <span class="pts">${f.pts}/${f.max}</span><span class="fnote">${f.note}</span></div>`).join("")}
+    <h3 style="margin:16px 0 8px;font-size:15px">進場計畫（${STATE.mode==="short"?"短線 1H–4H":"波段 1D"}）</h3>
+    <div class="plan" style="grid-template-columns:1fr 1fr 1fr 1fr">
+      <span class="k">進場區</span><span class="v">$${fmtP(p.entryLow)}–$${fmtP(p.entryHigh)}</span>
+      <span class="k">止損</span><span class="v dn">$${fmtP(p.stop)}</span>
+      <span class="k">目標1（${pct(p.up1)}）</span><span class="v up">$${fmtP(p.t1)}</span>
+      <span class="k">目標2（${pct(p.up2)}）</span><span class="v up">$${fmtP(p.t2)}</span>
+      <span class="k">R:R</span><span class="v">${p.rr.toFixed(1)}:1</span>
+      <span class="k">ATR</span><span class="v">$${fmtP(r.m.atr)}</span>
+      <span class="k">箱體位置</span><span class="v">${(r.m.posInRange*100).toFixed(0)}%</span>
+      <span class="k">EMA50 乖離</span><span class="v">${pct(r.m.ext*100)}</span>
+    </div>
+    <div class="note" style="margin-top:14px">目標價是結構情境估算（前高 / 箱體等幅），不是預測。流動性 ${fmtUSD(r.liq)} 的 Alpha 幣滑價成本高，實際下單請以盤口深度為準；若 R:R < 1.5 或量能倍數 < 1.5，建議直接放棄這個 setup。</div>`;
+  document.getElementById("modal-bg").classList.add("show");
+  sparkline(document.getElementById("m-spark"), r.m.closes.slice(-150));
+}
+
+/* ============ 訊號追蹤迴路：記錄 → 自動結算 → 統計 ============ */
+const TRK_KEY="ah_signals_v1";
+function trkLoad(){try{return JSON.parse(localStorage.getItem(TRK_KEY))||[]}catch(e){return[]}}
+function trkSave(a){try{localStorage.setItem(TRK_KEY,JSON.stringify(a.slice(-600)))}catch(e){}}
+
+function recordSignals(rows){
+  const a=trkLoad(), now=Date.now(); let added=0;
+  for(const r of rows.filter(x=>x.score>=60)){
+    if(a.some(s=>s.sym===r.sym&&s.mode===STATE.mode&&now-s.ts<12*3600e3)) continue; // 12H 冷卻，避免每 5 分鐘重複記
+    a.push({ts:now, mode:STATE.mode, sym:r.sym, alphaId:r.alphaId, score:r.score,
+      grade:r.score>=75?"strong":"watch", price:r.price, t1:r.plan.t1, stop:r.plan.stop,
+      f:Object.fromEntries(r.factors.map(f=>[f.name,+(f.pts/f.max).toFixed(2)])),
+      ret24:null, ret72:null, mfe72:null, mae72:null, hitT1:null, hitStop:null});
+    added++;
+  }
+  if(added) trkSave(a);
+  return added;
+}
+
+let resolving=false;
+async function resolvePending(){
+  if(resolving) return; resolving=true;
+  try{
+    const a=trkLoad(), now=Date.now();
+    const need=a.filter(s=>!s.err&&((now-s.ts>=24*3600e3&&s.ret24===null)||(now-s.ts>=72*3600e3&&s.ret72===null))).slice(0,30);
+    if(!need.length){renderTracker();return;}
+    const queue=[...need];
+    async function w(){
+      while(queue.length){
+        const s=queue.shift();
+        try{
+          const kj=await fetchJSON(API+"/alpha-trade/klines?interval=1h&limit=168&startTime="+s.ts+"&symbol="+s.alphaId+"USDT",2);
+          const bars=parseBars(kj.data||[]);
+          if(!bars.length){ if(now-s.ts>96*3600e3) s.err=1; continue; } // 可能已下架
+          const upto=h=>bars.filter(b=>b.t<=s.ts+h*3600e3);
+          const b24=upto(24), b72=upto(72);
+          if(now-s.ts>=24*3600e3&&b24.length) s.ret24=+(((last(b24).c-s.price)/s.price*100).toFixed(2));
+          if(now-s.ts>=72*3600e3&&b72.length){
+            s.ret72=+(((last(b72).c-s.price)/s.price*100).toFixed(2));
+            const hi=Math.max(...b72.map(b=>b.h)), lo=Math.min(...b72.map(b=>b.l));
+            s.mfe72=+(((hi-s.price)/s.price*100).toFixed(2));
+            s.mae72=+(((lo-s.price)/s.price*100).toFixed(2));
+            s.hitT1=hi>=s.t1; s.hitStop=lo<=s.stop;
+          }
+        }catch(e){}
+      }
+    }
+    await Promise.all([w(),w(),w()]);
+    trkSave(a); renderTracker();
+  } finally { resolving=false; }
+}
+
+function renderTracker(){
+  const a=trkLoad();
+  const avg=x=>x.length?x.reduce((s,v)=>s+v,0)/x.length:NaN;
+  const res24=a.filter(s=>s.ret24!==null&&!s.err);
+  const res72=a.filter(s=>s.ret72!==null&&!s.err);
+  const win24=res24.length?res24.filter(s=>s.ret24>0).length/res24.length*100:NaN;
+  const a24=avg(res24.map(s=>s.ret24)), a72=avg(res72.map(s=>s.ret72));
+  const hitT1=res72.length?res72.filter(s=>s.hitT1).length/res72.length*100:NaN;
+  const hitSt=res72.length?res72.filter(s=>s.hitStop).length/res72.length*100:NaN;
+  const strong=res24.filter(s=>s.grade==="strong"), watch=res24.filter(s=>s.grade==="watch");
+  let facHtml="樣本 ≥10 筆後計算";
+  if(res24.length>=10){
+    const names=[...new Set(res24.flatMap(s=>Object.keys(s.f||{})))];
+    const diffs=names.map(n=>{
+      const hi=res24.filter(s=>(s.f&&s.f[n]!=null?s.f[n]:0)>=0.7), lo=res24.filter(s=>(s.f&&s.f[n]!=null?s.f[n]:0)<0.7);
+      if(hi.length<3||lo.length<3) return null;
+      return {n, d:avg(hi.map(s=>s.ret24))-avg(lo.map(s=>s.ret24))};
+    }).filter(Boolean).sort((x,y)=>y.d-x.d);
+    facHtml=diffs.length?diffs.map(x=>x.n+"：<b class='"+(x.d>0?"up":"dn")+"'>"+(x.d>0?"+":"")+x.d.toFixed(1)+"pp</b>").join("<br>"):"分組樣本不足";
+  }
+  document.getElementById("trk-stats").innerHTML=
+    "<div class='stat'><div class='k'>訊號樣本</div><div class='v'>"+a.length+"</div><div class='s'>已結算 24H："+res24.length+" · 72H："+res72.length+(res24.length&&res24.length<30?"（樣本不足，先別下結論）":"")+"</div></div>"+
+    "<div class='stat'><div class='k'>24H 勝率 / 平均報酬</div><div class='v'>"+(isFinite(win24)?win24.toFixed(0)+"%":"--")+" <span style='font-size:15px' class='"+cls(isFinite(a24)?a24:0)+"'>"+(isFinite(a24)?pct(a24):"")+"</span></div><div class='s'>強訊號 "+(strong.length?pct(avg(strong.map(s=>s.ret24))):"--")+" · 觀察 "+(watch.length?pct(avg(watch.map(s=>s.ret24))):"--")+"</div></div>"+
+    "<div class='stat'><div class='k'>72H 平均 / 命中率</div><div class='v "+cls(isFinite(a72)?a72:0)+"'>"+(isFinite(a72)?pct(a72):"--")+"</div><div class='s'>T1 命中 "+(isFinite(hitT1)?hitT1.toFixed(0)+"%":"--")+" · 觸止損 "+(isFinite(hitSt)?hitSt.toFixed(0)+"%":"--")+"</div></div>"+
+    "<div class='stat'><div class='k'>因子有效性（高分組−低分組 24H 報酬差）</div><div class='v' style='font-size:13px;line-height:1.9'>"+facHtml+"</div><div class='s'>正值代表該因子高分時報酬確實較好</div></div>";
+  const rows=[...a].sort((x,y)=>y.ts-x.ts).slice(0,20);
+  document.getElementById("trk-body").innerHTML=rows.map(s=>{
+    const st=s.err?"無數據":s.ret72!==null?"已結算":s.ret24!==null?"追蹤中":"等待 24H";
+    return "<tr><td>"+s.sym+"</td><td>"+new Date(s.ts).toLocaleString("zh-TW",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})+"</td>"+
+      "<td>"+(s.mode==="short"?"短線":"波段")+"</td><td style='font-weight:700;color:"+(s.grade==="strong"?"var(--gold)":"var(--cyan)")+"'>"+s.score+"</td><td>$"+fmtP(s.price)+"</td>"+
+      "<td class='"+cls(s.ret24||0)+"'>"+(s.ret24===null?"--":pct(s.ret24))+"</td>"+
+      "<td class='"+cls(s.ret72||0)+"'>"+(s.ret72===null?"--":pct(s.ret72))+"</td>"+
+      "<td class='up'>"+(s.mfe72===null?"--":pct(s.mfe72))+"</td>"+
+      "<td>"+(s.hitT1===null?"--":s.hitT1?"<span class='up'>✓</span>":"<span class='dn'>✗</span>")+"</td>"+
+      "<td style='color:var(--faint)'>"+st+"</td></tr>";
+  }).join("")||"<tr><td colspan='10' style='text-align:center;color:var(--faint)'>尚無訊號紀錄，掃描後自動累積</td></tr>";
+}
+
+document.getElementById("btn-csv").addEventListener("click",()=>{
+  const a=trkLoad(); if(!a.length){alert("尚無數據");return;}
+  const fnames=[...new Set(a.flatMap(s=>Object.keys(s.f||{})))];
+  const head=["time","sym","mode","score","grade","price","t1","stop","ret24","ret72","mfe72","mae72","hitT1","hitStop"].concat(fnames);
+  const lines=[head.join(",")].concat(a.map(s=>[new Date(s.ts).toISOString(),s.sym,s.mode,s.score,s.grade,s.price,s.t1,s.stop,s.ret24,s.ret72,s.mfe72,s.mae72,s.hitT1,s.hitStop].concat(fnames.map(n=>s.f&&s.f[n]!=null?s.f[n]:"")).join(",")));
+  const u=URL.createObjectURL(new Blob(["﻿"+lines.join("\n")],{type:"text/csv"}));
+  const el=document.createElement("a"); el.href=u; el.download="alpha_hunter_signals.csv"; el.click(); URL.revokeObjectURL(u);
+});
+document.getElementById("btn-clear").addEventListener("click",()=>{
+  if(confirm("確定清除所有追蹤數據？建議先匯出 CSV 備份。")){localStorage.removeItem(TRK_KEY);renderTracker();}
+});
+
+/* ============ 事件 ============ */
+document.getElementById("btn-scan").addEventListener("click",scan);
+document.getElementById("seg-mode").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  document.querySelectorAll("#seg-mode button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); STATE.mode=b.dataset.m;
+  if(STATE.rows.length) scan();
+});
+document.querySelectorAll("#tbl th").forEach(th=>th.addEventListener("click",()=>{
+  if(STATE.sortK===th.dataset.k) STATE.sortAsc=!STATE.sortAsc;
+  else {STATE.sortK=th.dataset.k; STATE.sortAsc=false;}
+  renderTable();
+}));
+document.getElementById("modal-bg").addEventListener("click",e=>{if(e.target.id==="modal-bg")e.target.classList.remove("show");});
+document.getElementById("sel-auto").addEventListener("change",setAuto);
+function setAuto(){
+  clearInterval(STATE.timer);
+  const s=+document.getElementById("sel-auto").value;
+  if(s) STATE.timer=setInterval(()=>{if(!STATE.scanning)scan();},s*1000);
+}
+setAuto();
+loadContext();
+setInterval(loadContext,60000);
+renderTracker();
+setTimeout(resolvePending,2500);          // 開頁自動結算到期訊號
+setInterval(resolvePending,30*60*1000);   // 每 30 分鐘補結算
+</script>
+</body>
+</html>
